@@ -1,0 +1,317 @@
+{% extends 'base.html' %}
+
+{% block title %}Register Face - Face Attendance System{% endblock %}
+
+{% block content %}
+<!-- Main Camera View - Centered -->
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-camera-video me-2"></i>Camera Preview</span>
+                <span class="badge bg-warning text-dark" id="recordingStatus">Not Recording</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="video-container" style="height: 450px; background: #000; border-radius: 10px;">
+                    <video id="video" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover; display: none;"></video>
+                    <div id="cameraPlaceholder" class="overlay-text">
+                        <i class="bi bi-camera" style="font-size: 5rem; opacity: 0.5;"></i>
+                        <p class="mt-2">Click "Start Camera" to begin</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Controls -->
+        <div class="card">
+            <div class="card-body">
+                <form id="registerForm">
+                    <div class="row align-items-end">
+                        <div class="col-md-5">
+                            <label for="name" class="form-label">
+                                <i class="bi bi-person me-2"></i>Enter Name
+                            </label>
+                            <input type="text" class="form-control form-control-lg" id="name" name="name" placeholder="Enter person's name">
+                        </div>
+                        <div class="col-md-7">
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="button" class="btn btn-primary btn-lg" id="startBtn">
+                                    <i class="bi bi-camera me-2"></i>Start Camera
+                                </button>
+                                <button type="button" class="btn btn-success btn-lg d-none" id="captureBtn" style="font-size: 1.2rem; padding: 1rem 2rem;">
+                                    <i class="bi bi-record-circle-fill me-2"></i>Capture Photo
+                                </button>
+                                <button type="button" class="btn btn-danger btn-lg d-none" id="stopBtn">
+                                    <i class="bi bi-stop-circle me-2"></i>Stop
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <p class="text-muted mb-1">Click "Capture Photo" button (auto-captures every 2 seconds)</p>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Photo Count Display -->
+        <div class="card mt-3">
+            <div class="card-body text-center py-3">
+                <h2 class="display-4 fw-bold mb-0" id="photoCount">0</h2>
+                <p class="text-muted mb-0">photos captured</p>
+                <p class="badge bg-success mt-2">Recommended: 15+ photos</p>
+            </div>
+        </div>
+        
+        <div id="photoMessage" class="mt-3"></div>
+    </div>
+</div>
+
+<!-- User Management Panel -->
+<div class="row justify-content-center mt-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-people me-2"></i>Registered Users</span>
+                <button class="btn btn-sm btn-outline-primary" onclick="refreshUsers()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" id="userList" style="max-height: 250px; overflow-y: auto;">
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-hourglass-split spinner-border spinner-border-sm"></i>
+                        <p class="mt-2">Loading users...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-trash me-2"></i>Delete User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="deleteUserName"></strong>?</p>
+                <p class="text-muted small">This will permanently delete all their face photos and retrain the model.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="bi bi-trash me-2"></i>Delete User
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const video = document.getElementById('video');
+const startBtn = document.getElementById('startBtn');
+const captureBtn = document.getElementById('captureBtn');
+const stopBtn = document.getElementById('stopBtn');
+const nameInput = document.getElementById('name');
+const photoMessage = document.getElementById('photoMessage');
+const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+const recordingStatus = document.getElementById('recordingStatus');
+const userList = document.getElementById('userList');
+let deleteModal;
+let stream = null;
+let captureInterval = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    loadUsers();
+});
+
+// Load registered users
+async function loadUsers() {
+    try {
+        const response = await fetch('/get_all_users');
+        const data = await response.json();
+        
+        if (data.users && data.users.length > 0) {
+            userList.innerHTML = data.users.map(user => `
+                <div class="list-group-item d-flex align-items-center justify-content-between py-3">
+                    <div>
+                        <i class="bi bi-person-circle text-primary me-2"></i>
+                        <strong>${user.name}</strong>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary">${user.photo_count} photos</span>
+                        <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal('${user.name}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            userList.innerHTML = `
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-person-plus" style="font-size: 2rem;"></i>
+                    <p class="mt-2">No users registered yet</p>
+                </div>
+            `;
+        }
+    } catch (err) {
+        userList.innerHTML = `
+            <div class="text-center py-4 text-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                <p>Error loading users</p>
+            </div>
+        `;
+    }
+}
+
+function refreshUsers() {
+    loadUsers();
+    showMessage('User list refreshed', 'info');
+}
+
+function showDeleteModal(name) {
+    document.getElementById('deleteUserName').textContent = name;
+    deleteModal.show();
+}
+
+document.getElementById('confirmDeleteBtn').addEventListener('click', async function() {
+    const name = document.getElementById('deleteUserName').textContent;
+    if (name) {
+        try {
+            const response = await fetch('/delete_user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            
+            const data = await response.json();
+            deleteModal.hide();
+            
+            if (data.success) {
+                showMessage(data.message, 'success');
+                loadUsers();
+            } else {
+                showMessage(data.message, 'danger');
+            }
+        } catch (err) {
+            showMessage('Error deleting user', 'danger');
+        }
+    }
+});
+
+// Camera controls
+async function startCamera() {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: 'user'
+            } 
+        });
+        video.srcObject = stream;
+        video.style.display = 'block';
+        cameraPlaceholder.style.display = 'none';
+        
+        startBtn.classList.add('d-none');
+        captureBtn.classList.remove('d-none');
+        stopBtn.classList.remove('d-none');
+        recordingStatus.textContent = 'Live ✓';
+        recordingStatus.className = 'badge bg-success';
+        
+        // Auto capture every 3 seconds
+        captureInterval = setInterval(capturePhoto, 3000);
+        
+        showMessage('📹 Camera ready - click Capture or wait for auto', 'success');
+    } catch (err) {
+        showMessage('Camera error: ' + err.message, 'danger');
+        console.error('Camera error:', err);
+    }
+}
+
+function stopCamera() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+    if (captureInterval) {
+        clearInterval(captureInterval);
+    }
+    
+    video.style.display = 'none';
+    cameraPlaceholder.style.display = 'block';
+    
+    startBtn.classList.remove('d-none');
+    captureBtn.classList.add('d-none');
+    stopBtn.classList.add('d-none');
+    recordingStatus.textContent = 'Stopped';
+    recordingStatus.className = 'badge bg-danger';
+    
+    showMessage('Camera stopped', 'info');
+}
+
+async function capturePhoto() {
+    const name = nameInput.value.trim();
+    if (!name) {
+        showMessage('⚠️ Enter name first!', 'warning');
+        return;
+    }
+    
+    try {
+        // Visual feedback
+        video.style.filter = 'brightness(2)';
+        setTimeout(() => video.style.filter = '', 200);
+        
+        const response = await fetch('/capture_photo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('photoCount').textContent = data.count;
+            showMessage(`✅ Photo ${data.count} saved! (${data.message})`, 'success');
+            loadUsers();
+        } else {
+            showMessage('❌ ' + data.message, 'danger');
+        }
+    } catch (err) {
+        showMessage('❌ Capture failed - try again', 'danger');
+        console.error('Capture error:', err);
+    }
+}
+
+function showMessage(message, type) {
+    photoMessage.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+}
+
+// Event listeners
+startBtn.addEventListener('click', startCamera);
+stopBtn.addEventListener('click', stopCamera);
+captureBtn.addEventListener('click', capturePhoto);
+
+nameInput.addEventListener('input', function() {
+    const count = document.getElementById('photoCount');
+    if (this.value.trim()) {
+        fetch('/get_photo_count/' + encodeURIComponent(this.value.trim()))
+            .then(r => r.json())
+            .then(data => count.textContent = data.count)
+            .catch(() => count.textContent = '0');
+    } else {
+        count.textContent = '0';
+    }
+});
+</script>
+{% endblock %}

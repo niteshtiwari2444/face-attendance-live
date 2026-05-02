@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+
+{% block title %}Train Model - Face Attendance System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-brain"></i> Train Face Recognition Model
+            </div>
+            <div class="card-body text-center py-5">
+                <div class="feature-icon mx-auto mb-4" style="width: 100px; height: 100px; font-size: 2.5rem;">
+                    <i class="bi bi-cpu"></i>
+                </div>
+                
+                <h3 class="mb-3">Train Your Model</h3>
+                <p class="text-muted mb-4" style="max-width: 500px; margin: 0 auto 2rem;">
+                    Train the face recognition model using all registered face photos.
+                    Make sure you have registered at least one person before training.
+                </p>
+                
+                <div class="card bg-light mb-4" style="max-width: 500px; margin: 0 auto;">
+                    <div class="card-body text-start">
+                        <h6 class="fw-bold mb-3"><i class="bi bi-list-check me-2"></i>Instructions:</h6>
+                        <ol class="mb-0 text-muted">
+                            <li class="mb-2">Ensure you have registered face photos</li>
+                            <li class="mb-2">Click the "Train Model" button below</li>
+                            <li class="mb-2">Wait for training to complete</li>
+                            <li>Start taking attendance after training</li>
+                        </ol>
+                    </div>
+                </div>
+                
+                <div id="trainingSpinner" class="loading-spinner"></div>
+                
+                <div id="trainingMessage" class="mb-4"></div>
+                
+                <button type="button" class="btn btn-primary btn-lg px-5" id="trainBtn">
+                    <i class="bi bi-play-circle me-2"></i>Train Model
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-info-circle"></i> Training Information
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex align-items-center">
+                                <i class="bi bi-check-circle text-success me-2"></i>
+                                LBPH Algorithm
+                            </li>
+                            <li class="list-group-item d-flex align-items-center">
+                                <i class="bi bi-check-circle text-success me-2"></i>
+                                15+ photos recommended
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex align-items-center">
+                                <i class="bi bi-check-circle text-success me-2"></i>
+                                Good lighting required
+                            </li>
+                            <li class="list-group-item d-flex align-items-center">
+                                <i class="bi bi-check-circle text-success me-2"></i>
+                                Re-train for new users
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const trainBtn = document.getElementById('trainBtn');
+const trainingSpinner = document.getElementById('trainingSpinner');
+const trainingMessage = document.getElementById('trainingMessage');
+
+trainBtn.addEventListener('click', async function() {
+    trainBtn.classList.add('d-none');
+    trainingSpinner.style.display = 'block';
+    trainingMessage.innerHTML = '';
+    
+    try {
+        const response = await fetch('/run_training', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        trainingSpinner.style.display = 'none';
+        trainBtn.classList.remove('d-none');
+        
+        if (data.success) {
+            trainingMessage.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle-fill me-2"></i>${data.message}
+                </div>
+            `;
+        } else {
+            trainingMessage.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle-fill me-2"></i>${data.message}
+                </div>
+            `;
+        }
+    } catch (err) {
+        trainingSpinner.style.display = 'none';
+        trainBtn.classList.remove('d-none');
+        
+        trainingMessage.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-x-circle-fill me-2"></i>Error: ${err.message}
+            </div>
+        `;
+    }
+});
+</script>
+{% endblock %}

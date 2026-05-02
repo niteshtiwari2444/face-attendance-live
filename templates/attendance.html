@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% block title %}Live Attendance{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row g-4">
+        <!-- CAMERA FEED -->
+        <div class="col-lg-8">
+            <div class="card shadow-lg h-100">
+                <div class="card-header bg-gradient-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-camera-video me-2"></i>
+                        Live Face Recognition
+                    </h4>
+                </div>
+                <div class="card-body p-0 position-relative">
+                    <img id="cameraFeed" 
+                         src="/video_feed_attendance?subject=General" 
+                         class="w-100" 
+                         style="height: 450px; object-fit: cover;"
+                         alt="Live Camera">
+                    <div class="position-absolute top-3 end-3 badge bg-success fs-6 px-3 py-2 rounded-pill shadow">
+                        <i class="bi bi-circle-fill me-1"></i>LIVE
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- CONTROLS & STATUS -->
+        <div class="col-lg-4">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-gear me-2 text-primary"></i>Controls</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Subject Selector -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold mb-2">Subject/Class</label>
+                        <select class="form-select" id="subjectSelect">
+                            <option value="Mathematics">Mathematics</option>
+                            <option value="Physics">Physics</option>
+                            <option value="Chemistry">Chemistry</option>
+                            <option value="English">English</option>
+                            <option value="Computer Science">Computer Science</option>
+                            <option value="General" selected>General</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Buttons -->
+                    <button class="btn btn-warning w-100 mb-3" onclick="changeSubject()">
+                        <i class="bi bi-arrow-clockwise me-2"></i>Change Subject
+                    </button>
+                    
+                    <div class="mb-3 p-3 bg-light rounded">
+                        <h6 class="text-success mb-2">
+                            <i class="bi bi-check-circle me-1"></i>
+                            Marked Today: <span id="countBadge" class="badge bg-success">0</span>
+                        </h6>
+                        <div id="markedNames" class="small text-muted">
+                            No faces detected yet...
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Actions -->
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-danger btn-sm" onclick="clearRecords()">
+                            <i class="bi bi-trash me-1"></i>Clear Today
+                        </button>
+                        <a href="/records" class="btn btn-primary btn-sm">
+                            <i class="bi bi-list me-1"></i>View Records
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let refreshInterval;
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('✅ Live system ready');
+    startUpdates();
+    
+    // Auto refresh marked list
+    refreshInterval = setInterval(updateStatus, 2000);
+});
+
+function startUpdates() {
+    updateStatus();
+}
+
+function updateStatus() {
+    fetch('/get_marked_today')
+        .then(response => response.json())
+        .then(data => {
+            const count = data.marked ? data.marked.length : 0;
+            document.getElementById('countBadge').textContent = count;
+            
+            const namesDiv = document.getElementById('markedNames');
+            if (count > 0) {
+                namesDiv.innerHTML = data.marked.slice(0, 5).map(name => 
+                    `<div><i class="bi bi-check-circle text-success me-1"></i>${name}</div>`
+                ).join('') + (count > 5 ? `<div class="text-muted">+${count-5} more</div>` : '');
+            } else {
+                namesDiv.innerHTML = 'No faces detected yet...';
+            }
+        })
+        .catch(() => {}); // Silent fail
+}
+
+function changeSubject() {
+    const subject = document.getElementById('subjectSelect').value;
+    const feed = document.getElementById('cameraFeed');
+    feed.src = `/video_feed_attendance?subject=${encodeURIComponent(subject)}&t=${Date.now()}`;
+}
+
+function clearRecords() {
+    if (confirm('Clear today\'s attendance records?')) {
+        location.reload();
+    }
+}
+</script>
+{% endblock %}
