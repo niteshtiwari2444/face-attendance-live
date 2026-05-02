@@ -242,7 +242,8 @@ def video_feed_attendance():
                 face_roi = cv2.equalizeHist(face_roi)
                 
                 name = "Unknown"
-if recognizer and names:
+                confidence = 999
+                if recognizer and names:
                     try:
                         label, confidence = recognizer.predict(face_roi)
                         print(f"🎯 PREDICT: label={label}, conf={confidence:.0f}")
@@ -261,7 +262,7 @@ if recognizer and names:
                             print(f"✅ {name} ATTENDED! Conf: {confidence:.0f}")
                     except Exception as e:
                         print(f"❌ Recognition error: {e}")
-                        name = "Unknown"
+
                 
                 cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 3)
                 cv2.rectangle(frame, (x, y-40), (x+w, y), (0, 255, 0), cv2.FILLED)
